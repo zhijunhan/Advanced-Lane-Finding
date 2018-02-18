@@ -59,7 +59,7 @@ plt.show()
 ```
 
 
-![png](output_5_0.png)
+![png](output_images/fig1.png)
 
 
 Now the camera has been calibrated.
@@ -89,7 +89,7 @@ plt.show()
 ```
 
 
-![png](output_7_0.png)
+![png](output_images/fig2.png)
 
 
 ### Applying Color and Gradient Thresholding, and Extracting Lane Pixels
@@ -121,7 +121,7 @@ plt.show()
 ```
 
 
-![png](output_10_0.png)
+![png](output_images/fig3.png)
 
 
 ### Performing the Perspective Transformation
@@ -166,7 +166,7 @@ plt.show()
 ```
 
 
-![png](output_13_0.png)
+![png](output_images/fig4.png)
 
 
 The following shows the combination of perspective transform and binarize
@@ -194,7 +194,7 @@ plt.show()
 ```
 
 
-![png](output_15_0.png)
+![png](output_images/fig5.png)
 
 
 ### Calculating Lane Curvature
@@ -224,7 +224,7 @@ plt.show
 
 
 
-![png](output_18_1.png)
+![png](output_images/fig6.png)
 
 
 Following code will be performing the road curvature calculation. The overall steps are:
@@ -322,5 +322,5 @@ plt.show
 
 
 
-![png](output_20_1.png)
+![png](output_images/fig7.png)
 
