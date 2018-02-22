@@ -135,7 +135,10 @@ class Line():
 		# Calculate radius of fitted curvature
 		left_curverad = ((1 + (2 * left_fit_cr[0] * y_eval * ym_per_pix + left_fit_cr[1]) ** 2) ** 1.5) / np.absolute(2 * left_fit_cr[0])
 		right_curverad = ((1 + (2 * right_fit_cr[0] * y_eval * ym_per_pix + right_fit_cr[1]) ** 2) ** 1.5) / np.absolute(2 * right_fit_cr[0])
-		return left_curverad, right_curverad
+		# Calculate the lane deviation
+		lane_deviation = self.lane_deviation(raw, xm_per_pix)
+
+		return left_curverad, right_curverad, lane_deviation
 
 	def draw(self, binary, leftx, rightx):
 		"""
@@ -220,32 +223,56 @@ class Line():
 			return cv2.warpPerspective(undistorted, Minv, (undistorted.shape[1], undistorted.shape[0]), flags=cv2.INTER_LINEAR)
 
 	def color_gradient(self, warped):
-		"""
-		Apply color and gradient combined thresholding, and binarize
-		"""
-		# Grayscale image
-		gray = cv2.cvtColor(warped, cv2.COLOR_RGB2GRAY)
-		# Calculate the derivative in X
-		sobelx = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
+
+		# Apply color mask
+		hsv = cv2.cvtColor(warped, cv2.COLOR_RGB2HSV)
+		yellow_lower = np.array([20,60,60])
+		yellow_upper = np.array([38,174,250])
+		yellow_mask = cv2.inRange(hsv, yellow_lower, yellow_upper)
+		white_lower = np.array([202,202,202])
+		white_upper = np.array([255,255,255])
+		white_mask = cv2.inRange(warped, white_lower, white_upper)
+		mask_binary = np.zeros_like(yellow_mask)
+		mask_binary[(yellow_mask >= 1) | (white_mask >= 1)] = 1
+		# Color and gradient threshold
+		gray_thresh = (20, 255)
+		s_thresh = (170, 255)
+		l_thresh = (30, 255)
+		# Convert image from RGB to HLS color space
+		hls = cv2.cvtColor(warped, cv2.COLOR_RGB2HLS)
+		s_channel = hls[:, :, 2]
+		l_channel = hls[:, :, 1]
+		# Apply Sobel operator in x direction
+		sobelx = cv2.Sobel(l_channel, cv2.CV_64F, 1, 0, ksize=3)
 		# Absolute x derivative to accentuate lines away from horizontal
 		abs_sobelx = np.absolute(sobelx)
 		scaled_sobelx = np.uint8(255 * abs_sobelx / np.max(abs_sobelx))
-		# Threshold x gradient
-		thresh = (20, 255)
+		# Generate a binary image
 		sxbinary = np.zeros_like(scaled_sobelx)
-		sxbinary[(scaled_sobelx >= thresh[0]) & (scaled_sobelx <= thresh[1])] = 1
-		# Convert to HLS color space and separate the s channel
-		hls = cv2.cvtColor(warped, cv2.COLOR_RGB2HLS)
-		s_channel = hls[:, :, 2]
-		# Threshold color channel
-		s_thresh = (170, 255)
+		sxbinary[(scaled_sobelx >= gray_thresh[0]) & (scaled_sobelx <= gray_thresh[1])] = 1
+		# Generate a binary image based on Saturation component of HLS color space
 		s_binary = np.zeros_like(s_channel)
 		s_binary[(s_channel >= s_thresh[0]) & (s_channel <= s_thresh[1])] = 1
-		# Combine the two binary thresholds
+		# Generate a binary based on L component of HLS color space
+		l_binary = np.zeros_like(l_channel)
+		l_binary[(l_channel >= l_thresh[0]) & (l_channel <= l_thresh[1])] = 1
+		# Combining binary images
 		binary = np.zeros_like(sxbinary)
-		binary[((s_binary == 1) | (sxbinary == 1))] = 1
-		# Stack each channel to view their individual contributions
-		return np.dstack((binary, binary, binary)).astype('uint8') * 255
+		binary[( (l_binary == 1) & (s_binary == 1) & (mask_binary == 1) | (sxbinary == 1) )] = 1
+		binary = 255 * np.dstack((binary, binary, binary)).astype('uint8')
+		# Reduce the noise of binary image
+		k = np.array([[1,1,1], [1,0,1], [1,1,1]])
+		n = cv2.filter2D(binary, ddepth=-1, kernel=k)
+		binary[n < 4] = 0
+		return binary
+
+	def lane_deviation(self, raw, xm_per_pix):
+		# Calculate the intercept of fitted lane curvature at the bottom of image
+		left_intercept = self.left_fit[0] * raw.shape[0] ** 2 + self.left_fit[1] * raw.shape[0] + self.left_fit[2]
+		right_intercept = self.right_fit[0] * raw.shape[0] ** 2 + self.right_fit[1] * raw.shape[0] + self.right_fit[2]
+		# Calculate lane deviation
+		lane_center = (left_intercept + right_intercept) * 0.5
+		return (lane_center - raw.shape[1] * 0.5) * xm_per_pix
 
 	def process_pipeline(self, raw):
 		# Calibrate camera and undistort images
@@ -270,11 +297,18 @@ class Line():
 		leftx = np.average(self.left_container, axis=0)
 		rightx = np.average(self.right_container, axis=0)
 		# Calculate the curvature
-		left_curvature, right_curvature = self.measure_curvature(raw, leftx, rightx)
+		left_curvature, right_curvature, lane_deviation = self.measure_curvature(raw, leftx, rightx)
+		# Curvature info
+		lane_cur_info = 'Left lane curvature: {:.2f} m; Right lane curvature: {:.2f} m'.format(left_curvature, right_curvature)
+		# Lane deviation info
+		lane_dev_info = 'Lane deviation: {:.2f} m'.format(lane_deviation)
+		# Print road lane info text on raw image
+		cv2.putText(undistorted, lane_cur_info, (90, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (200, 50, 150), 3)
+		cv2.putText(undistorted, lane_dev_info, (90, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (200, 50, 150), 3)
 		# Fill the lane
 		filled = self.draw(binary, leftx, rightx)
 		# Inversely perspective transform the image to the camera view, so could perform the image combination
 		unwarped_processed_binary = self.perspective_transform(filled, direction='inverse')
 		# Overlay processed images with raw image
-		combined = cv2.addWeighted(raw, 1, unwarped_processed_binary, 0.3, 0)
+		combined = cv2.addWeighted(undistorted, 1, unwarped_processed_binary, 0.3, 0)
 		return combined
