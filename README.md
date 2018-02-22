@@ -324,3 +324,80 @@ plt.show
 
 ![png](output_images/fig7.png)
 
+
+### Generate processed video frame image
+
+As the code being structured, **`Line`** class encapsulates all the methods and member functions that are described as above in **`utils`** file.
+The main method of **`Line`** class is **`process_pipeline`**, which takes clipped video frame image or individual image as input. The following code will address how the individual video frame image being processed, calculated and extracted road lane information.
+
+
+```python
+raw = mpimg.imread('test_images/test5.jpg')
+line = Line()
+# Calibrate camera and undistort images
+undistorted = line.cal_undistort(raw)
+# Apply perspective transform to bird's-eye view
+warped = line.perspective_transform(undistorted, direction='forward')
+# Apply color and gradient combined thresholding, and binarize
+binary = line.color_gradient(warped)
+leftx, rightx = line.basic_lane_find(binary)
+# Calculate the curvature
+left_curvature, right_curvature, lane_deviation = line.measure_curvature(raw, leftx, rightx)
+# Curvature info
+lane_cur_info = 'Left lane curvature: {:.2f} m; Right lane curvature: {:.2f} m'.format(left_curvature, right_curvature)
+# Lane deviation info
+lane_dev_info = 'Lane deviation: {:.2f} m'.format(lane_deviation)
+# Print road lane info text on raw image
+cv2.putText(undistorted, lane_cur_info, (90, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (200, 50, 150), 3)
+cv2.putText(undistorted, lane_dev_info, (90, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (200, 50, 150), 3)
+# Fill the lane
+filled = line.draw(binary, leftx, rightx)
+# Inversely perspective transform the image to the camera view, so could perform the image combination
+unwarped_processed_binary = line.perspective_transform(filled, direction='inverse')
+# Overlay processed images with raw image
+combined = cv2.addWeighted(undistorted, 1, unwarped_processed_binary, 0.3, 0)
+
+plt.figure(figsize=(20,10))
+plt.axis('off')
+plt.imshow(combined)
+plt.savefig(OUTPUT_LOCATION + 'fig8.png')
+plt.show
+```
+
+
+
+
+    <function matplotlib.pyplot.show>
+
+
+
+
+![png](output_images/fig8.png)
+
+
+At the end, this lane finding algorithm will be applied on a sample video clip.
+
+
+```python
+from moviepy.editor import VideoFileClip
+line = Line()
+raw_clip = VideoFileClip('project_video.mp4')
+processed_clip = raw_clip.fl_image(line.process_pipeline)
+processed_clip.write_videofile('processed_project_video.mp4', audio=False)
+```
+
+    [MoviePy] >>>> Building video processed_project_video.mp4
+    [MoviePy] Writing video processed_project_video.mp4
+
+
+    100%|█████████▉| 1260/1261 [04:26<00:00,  4.94it/s]
+
+
+    [MoviePy] Done.
+    [MoviePy] >>>> Video ready: processed_project_video.mp4 
+    
+
+
+## Discussion
+
+As an initial version of lane finding algorithm, the code works fine with 'project_video.mp4', which has fairly clean lane line boundaries and marks. Multiple scenarios could confuse this lane finding algorithm, or the algorithm is not very well developed for handling too much road lane exceptions. For example, in the 'challenge_video.mp4' video clip, the road cracks could be misleading the algorithm to be treated as part of lane lines. In addition, vehicles in front could trick the algorithm into thinking other vehicles are part of lines. More work should be done to make this lane finding algorithm more robust.
