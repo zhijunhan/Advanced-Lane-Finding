@@ -398,6 +398,7 @@ processed_clip.write_videofile('processed_project_video.mp4', audio=False)
     
 
 
+
 ## Discussion
 
 As an initial version of lane finding algorithm, the code works fine with 'project_video.mp4', which has fairly clean lane line boundaries and marks. Multiple scenarios could confuse this lane finding algorithm, or the algorithm is not very well developed for handling too much road lane exceptions. For example, in the 'challenge_video.mp4' video clip, the road cracks could be misleading the algorithm to be treated as part of lane lines. In addition, vehicles in front could trick the algorithm into thinking other vehicles are part of lines. More work should be done to make this lane finding algorithm more robust.
