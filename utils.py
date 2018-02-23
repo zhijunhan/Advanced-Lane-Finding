@@ -118,13 +118,15 @@ class Line():
 		right_fitx = self.right_fit[0] * ploty ** 2 + self.right_fit[1] * ploty + self.right_fit[2]
 		return left_fitx, right_fitx
 
-	def measure_curvature(self, raw, leftx, rightx):
+	def measure_curvature(self, warped, leftx, rightx):
 		"""
 		Compute the radius of curvature
 		"""
 		# Define conversions in x and y from pixels space to meters
-		xm_per_pix = 3.7/raw.shape[1] # meters per pixel in x dimension
-		ym_per_pix = 30/raw.shape[0] # meters per pixel in y dimension
+		#xm_per_pix = 3.7/warped.shape[1] # meters per pixel in x dimension
+		#ym_per_pix = 30.0/warped.shape[0] # meters per pixel in y dimension
+		xm_per_pix = 3.7/700 # meters per pixel in x dimension
+		ym_per_pix = 30.0/720 # meters per pixel in y dimension
 		# Generate some fake data to represent lane-line pixels
 		ploty = np.linspace(0, 719, num=720) # to cover same y-range as image
 		# Fit second order polynomials to x, y in world space
@@ -137,7 +139,7 @@ class Line():
 		left_curverad = ((1 + (2 * left_fit_cr[0] * y_eval * ym_per_pix + left_fit_cr[1]) ** 2) ** 1.5) / np.absolute(2 * left_fit_cr[0])
 		right_curverad = ((1 + (2 * right_fit_cr[0] * y_eval * ym_per_pix + right_fit_cr[1]) ** 2) ** 1.5) / np.absolute(2 * right_fit_cr[0])
 		# Calculate the lane deviation
-		lane_deviation = self.lane_deviation(raw, xm_per_pix)
+		lane_deviation = self.lane_deviation(warped, xm_per_pix)
 
 		return left_curverad, right_curverad, lane_deviation
 
@@ -244,13 +246,13 @@ class Line():
 		combined_binary[n < 4] = 0
 		return combined_binary
 
-	def lane_deviation(self, raw, xm_per_pix):
+	def lane_deviation(self, warped, xm_per_pix):
 		# Calculate the intercept of fitted lane curvature at the bottom of image
-		left_intercept = self.left_fit[0] * raw.shape[0] ** 2 + self.left_fit[1] * raw.shape[0] + self.left_fit[2]
-		right_intercept = self.right_fit[0] * raw.shape[0] ** 2 + self.right_fit[1] * raw.shape[0] + self.right_fit[2]
+		left_intercept = self.left_fit[0] * warped.shape[0] ** 2 + self.left_fit[1] * warped.shape[0] + self.left_fit[2]
+		right_intercept = self.right_fit[0] * warped.shape[0] ** 2 + self.right_fit[1] * warped.shape[0] + self.right_fit[2]
 		# Calculate lane deviation
 		lane_center = (left_intercept + right_intercept) * 0.5
-		return (lane_center - raw.shape[1] * 0.5) * xm_per_pix
+		return (lane_center - warped.shape[1] * 0.5) * xm_per_pix
 
 	def process_pipeline(self, raw):
 		# Calibrate camera and undistort images
@@ -284,7 +286,7 @@ class Line():
 		rightx = right_fitx
 
 		# Calculate the curvature
-		left_curvature, right_curvature, lane_deviation = self.measure_curvature(raw, leftx, rightx)
+		left_curvature, right_curvature, lane_deviation = self.measure_curvature(warped, leftx, rightx)
 		# Curvature info
 		lane_cur_info = 'Left lane curvature: {:.2f} m; Right lane curvature: {:.2f} m'.format(left_curvature, right_curvature)
 		# Lane deviation info
