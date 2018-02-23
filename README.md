@@ -380,9 +380,10 @@ At the end, this lane finding algorithm will be applied on a sample video clip.
 
 ```python
 from moviepy.editor import VideoFileClip
-line = Line()
-raw_clip = VideoFileClip('project_video.mp4')
-processed_clip = raw_clip.fl_image(line.process_pipeline)
+from utils import Line
+line_test = Line()
+raw_clip = VideoFileClip('project_video.mp4').subclip(0,5)
+processed_clip = raw_clip.fl_image(line_test.process_pipeline)
 processed_clip.write_videofile('processed_project_video.mp4', audio=False)
 ```
 
@@ -390,13 +391,12 @@ processed_clip.write_videofile('processed_project_video.mp4', audio=False)
     [MoviePy] Writing video processed_project_video.mp4
 
 
-    100%|█████████▉| 1260/1261 [04:26<00:00,  4.94it/s]
+     99%|█████████▉| 125/126 [00:23<00:00,  5.55it/s]
 
 
     [MoviePy] Done.
     [MoviePy] >>>> Video ready: processed_project_video.mp4 
     
-
 
 
 ## Discussion
