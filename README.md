@@ -94,12 +94,12 @@ plt.show()
 
 ### Applying Color and Gradient Thresholding, and Extracting Lane Pixels
 
-The following steps are needed to identify the lane lines:
+The following color thresholding methods are useful to identify the yellow and white lane lines:
 
-1. Gradient thresholding using Sobel operation in X direction. 
-2. Color thresholding in Saturation of image in HLS color space
+1. The B channel from the Lab color space works very well in identifying the yellow lines, while completely ignoring the white lines for most of the time.
+2. The L channel from the LUV color space works perfect for picking up the white lines.
 
-Routine **`color_gradient`** will take warped or undistorted images, apply color and X-direction gradient thresholding functions, and binarize.
+Routine **`color_gradient`** will take warped or undistorted images, apply thresholding functions from Lab and LUV color spaces, and binarize.
 
 
 ```python
