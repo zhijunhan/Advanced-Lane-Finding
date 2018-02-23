@@ -14,6 +14,7 @@ class Line():
 		self.right_fit = None
 		# Lane averaging buffer number
 		self.average_n = 12
+		self.counter = 0
 		# Averaging lanes container
 		self.left_container = np.zeros((self.average_n, 720))
 		self.right_container = np.zeros((self.average_n, 720))
@@ -223,48 +224,25 @@ class Line():
 			return cv2.warpPerspective(undistorted, Minv, (undistorted.shape[1], undistorted.shape[0]), flags=cv2.INTER_LINEAR)
 
 	def color_gradient(self, warped):
-
-		# Apply color mask
-		hsv = cv2.cvtColor(warped, cv2.COLOR_RGB2HSV)
-		yellow_lower = np.array([20,60,60])
-		yellow_upper = np.array([38,174,250])
-		yellow_mask = cv2.inRange(hsv, yellow_lower, yellow_upper)
-		white_lower = np.array([202,202,202])
-		white_upper = np.array([255,255,255])
-		white_mask = cv2.inRange(warped, white_lower, white_upper)
-		mask_binary = np.zeros_like(yellow_mask)
-		mask_binary[(yellow_mask >= 1) | (white_mask >= 1)] = 1
-		# Color and gradient threshold
-		gray_thresh = (20, 255)
-		s_thresh = (170, 255)
-		l_thresh = (30, 255)
-		# Convert image from RGB to HLS color space
-		hls = cv2.cvtColor(warped, cv2.COLOR_RGB2HLS)
-		s_channel = hls[:, :, 2]
-		l_channel = hls[:, :, 1]
-		# Apply Sobel operator in x direction
-		sobelx = cv2.Sobel(l_channel, cv2.CV_64F, 1, 0, ksize=3)
-		# Absolute x derivative to accentuate lines away from horizontal
-		abs_sobelx = np.absolute(sobelx)
-		scaled_sobelx = np.uint8(255 * abs_sobelx / np.max(abs_sobelx))
-		# Generate a binary image
-		sxbinary = np.zeros_like(scaled_sobelx)
-		sxbinary[(scaled_sobelx >= gray_thresh[0]) & (scaled_sobelx <= gray_thresh[1])] = 1
-		# Generate a binary image based on Saturation component of HLS color space
-		s_binary = np.zeros_like(s_channel)
-		s_binary[(s_channel >= s_thresh[0]) & (s_channel <= s_thresh[1])] = 1
-		# Generate a binary based on L component of HLS color space
+		# Generate binary thresholded images
+		b_channel = cv2.cvtColor(warped, cv2.COLOR_RGB2Lab)[:, :, 2]
+		l_channel = cv2.cvtColor(warped, cv2.COLOR_RGB2LUV)[:, :, 0]
+		# Set upper and lower thresholds for the b channel
+		b_thresh = (145, 200)
+		b_binary = np.zeros_like(b_channel)
+		b_binary[(b_channel >= b_thresh[0]) & (b_channel <= b_thresh[1])] = 1
+		# set upper and lower thresholds for the l channel
+		l_thresh = (215, 255)
 		l_binary = np.zeros_like(l_channel)
-		l_binary[(l_channel >= l_thresh[0]) & (l_channel <= l_thresh[1])] = 1
-		# Combining binary images
-		binary = np.zeros_like(sxbinary)
-		binary[( (l_binary == 1) & (s_binary == 1) & (mask_binary == 1) | (sxbinary == 1) )] = 1
-		binary = 255 * np.dstack((binary, binary, binary)).astype('uint8')
+		l_binary[(l_channel >= l_thresh[0]) & (l_channel <= l_thresh[1])] = 1#
+		combined_binary = np.zeros_like(b_binary)
+		combined_binary[(l_binary == 1) | (b_binary == 1)] = 1
+		combined_binary = 255 * np.dstack((combined_binary, combined_binary, combined_binary)).astype('uint8')
 		# Reduce the noise of binary image
 		k = np.array([[1,1,1], [1,0,1], [1,1,1]])
-		n = cv2.filter2D(binary, ddepth=-1, kernel=k)
-		binary[n < 4] = 0
-		return binary
+		n = cv2.filter2D(combined_binary, ddepth=-1, kernel=k)
+		combined_binary[n < 4] = 0
+		return combined_binary
 
 	def lane_deviation(self, raw, xm_per_pix):
 		# Calculate the intercept of fitted lane curvature at the bottom of image
@@ -289,13 +267,22 @@ class Line():
 		# Append containers of left and right lanes
 		self.left_container[self.cursor] = left_fitx
 		self.right_container[self.cursor] = right_fitx
+
 		# Count the iteration
 		self.cursor += 1
-		if self.cursor >= self.average_n:
-			self.cursor = 0
+		self.cursor %= self.average_n
+		if self.counter < self.average_n:
+			self.counter += 1
+			leftx = np.sum(self.left_container, axis=0) / self.counter
+			rightx = np.sum(self.right_container, axis=0) / self.counter
+		else:
 		# Averaging the lanes
-		leftx = np.average(self.left_container, axis=0)
-		rightx = np.average(self.right_container, axis=0)
+			leftx = np.average(self.left_container, axis=0)
+			rightx = np.average(self.right_container, axis=0)
+
+		leftx = left_fitx
+		rightx = right_fitx
+
 		# Calculate the curvature
 		left_curvature, right_curvature, lane_deviation = self.measure_curvature(raw, leftx, rightx)
 		# Curvature info
